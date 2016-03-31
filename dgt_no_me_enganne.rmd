@@ -1,0 +1,343 @@
+---
+title: "DGT no me engañen"
+author: "pedro.concejerocerezo@gmail.com"
+date: "8 de marzo de 2016"
+output: html_document
+---
+
+Estudio 'provocado' por la carta de la DGT con la famosa afirmación "los conductores de coches de más de diez años tienen *doble* riesgo de morir en accidente de carretera".
+
+Preguntamos por datos accidentalidad en España y DGT fue muy amable por twitter señalar la siguiente [dirección web para microdatos](https://sedeapl.dgt.gob.es/WEB_IEST_CONSULTA/subcategoria.faces), aunque ¡ojo! en el último momento en que he consultado esta web sólo dispone de datos hasta 2013. Es interesante señalar que disponemos también de [informes predefinidos](https://sedeapl.dgt.gob.es/WEB_IEST_CONSULTA/buscadorInformePredefinido.faces), básicamente tablas que cruzan variables importantes de clasificación. (Y después de contestar a un captcha...)
+
+```{r}
+setwd("C:/Users/pedroc/Desktop/dgt")
+
+csvfiles <- list.files(pattern = glob2rx("*.csv"))
+
+print(csvfiles)
+```
+
+Así que tenemos tablas separadas para accidentes, personas implicadas, y vehículos.
+
+Leamos la de vehículos que es en principio la que nos interesa
+
+```{r}
+
+vehic <- read.table(csvfiles[3],
+                    header = T,
+                    sep =",")
+
+dim(vehic)
+
+head(vehic)
+
+summary(vehic)
+```
+
+
+Y bien, ya empezamos a ver cosas raras:
+
+- El año de matrícula del vehículo contienen 9999, vamos, que no tenemos ese dato.
+- El Tipo de vehículo es un código, por lo que si no tenemos una tabla de correspondencia número - tipo iremos a ciegas
+
+Unas mínimas manipulaciones necesarias:
+
+```{r}
+
+vehic$ID_ACCIDENTE <- as.character(vehic$ID_ACCIDENTE)
+vehic$ID_VEHICULO  <- as.factor(vehic$ID_VEHICULO)
+vehic$ANIO_MATRICULA_VEHICULO[vehic$ANIO_MATRICULA_VEHICULO > 2015] <- NA
+vehic$ANIO_MATRICULA_VEHICULO  <- as.factor(vehic$ANIO_MATRICULA_VEHICULO)
+table(vehic$ANIO_MATRICULA_VEHICULO, exclude = NULL)
+round(table(vehic$ANIO_MATRICULA_VEHICULO, exclude = NULL)/nrow(vehic)*100, digits = 3)
+# 35% de los vehículos no tienen antiguedad
+vehic$MES_MATRICULA_VEHICULO[vehic$MES_MATRICULA_VEHICULO == 99] <- NA
+vehic$MES_MATRICULA_VEHICULO  <- as.factor(vehic$MES_MATRICULA_VEHICULO)
+vehic$TIPO_VEHICULO  <- as.factor(vehic$TIPO_VEHICULO)
+vehic$ESTADO_VEHICULO  <- as.factor(vehic$ESTADO_VEHICULO)
+vehic$NUMERO_OCUPANTES_VEH[vehic$NUMERO_OCUPANTES_VEH == 999] <- NA
+
+
+summary(vehic)
+
+save(vehic, file = "vehic2013.rda")
+
+```
+
+¡Tenemos 3 vehículos de 1900! Y 2 anteriores a la II Guerra Mundial (!). Y 54319 NA's (!!!!!), nada menos que un 35%.
+
+Desde luego con esta información pocas conclusiones podemos sacar, porque, ¿tenemos datos del parque durante el año de los datos?
+
+¿Cuántos accidentes tenemos?
+
+```{r}
+
+length(unique(vehic$ID_ACCIDENTE))
+
+```
+
+89518 accidentes durante el periodo
+
+Para cuántos coches implicados?
+
+```{r}
+min(as.numeric(vehic$ID_VEHICULO))
+max(as.numeric(vehic$ID_VEHICULO))
+
+median(as.numeric(vehic$ID_VEHICULO))
+
+```
+
+ID_VEHICULO es un código del vehículo implicado en accidente, 1, 2, así hasta un máximo de 45 vehículos implicados en accidente. 
+
+El 50% de los accidentes solo tienen un vehículo implicado -no son colisiones, son otro tipo de accidente.
+
+```{r}
+
+barplot(table(vehic$ID_VEHICULO))
+```
+
+
+
+¿Cuántos tipos diferentes de vehículo tenemos?
+
+```{r}
+
+table(vehic$TIPO_VEHICULO)
+
+round((table(vehic$TIPO_VEHICULO) / nrow(vehic) * 100), digits = 2)
+
+```
+
+Pudiera ser que el código 22 sean turismos, representan el 65.5% de los datos
+
+Problema gordísimo: para poder extraer conclusiones de riesgo relativo por edad del vehículo, debemos conocer la composición del parque de vehículos. De turismos, en este caso, pues es la información que vamos a cotejar. Pero la DGT sólo ofrece datos de parque o anteriores a 2010, o año por año a partir de entonces (expresa esto mejor; vamos que no tenemos datos de antiguedad con suficiente precisión)
+
+Verificado aquí:
+https://sedeapl.dgt.gob.es/WEB_IEST_CONSULTA/informePersonalizado.faces
+
+Según parece podríamos escribir a portal.estadistico@dgt.es
+
+https://sedeapl.dgt.gob.es/WEB_IEST_CONSULTA/informePersonalizado.faces
+
+Así que parece que nos tendremos que conformar con datos agregados de línea directa
+
+http://www.fundacionlineadirecta.org/documents/206323/264147/estudio_envejecimiento_parque_automovilistico.pdf
+
+```{r}
+
+turismos <- vehic[vehic$TIPO_VEHICULO == 22,]
+
+barplot(table(turismos$ANIO_MATRICULA_VEHICULO))
+
+turismos$edad <- as.integer(as.character(turismos$ANIO_MATRICULA_VEHICULO))
+
+turismos$gredad <- cut(turismos$edad, breaks = c(1900, 1998, 2003, 2008, 2013))
+
+barplot(table(turismos$gredad))
+
+
+```
+
+
+¡Pero esto son datos absolutos! Esto es, aunque en las tres barras desde 1998 contienen el mismo número de años, hay que ver qué proporción de vehículos están implicados en accidente en proporción al número de vehículos de su edad en circulación. ¿Tenemos datos de parque de vehículos en año 2013? Solo los necesitaré para turismos y también quizás solo la antiguedad del vehículo.
+
+
+Leamos la tabla de accidentes
+
+```{r}
+
+accid <- read.table(csvfiles[1],
+                    header = T,
+                    sep = ";")
+
+dim(accid)
+
+head(accid)
+
+summary(accid)
+```
+
+Da varios warnings, y veo que el número de líneas leídas es inferior al número de líneas en fichero. Entro en fichero datos y observo que hay varias " ' ", que hay que quitar.
+
+Información riquísima sobre accidentes
+
+```{r}
+
+barplot(table(accid$COD_DIASEMANA))
+
+barplot(table(accid$COD_TIPOACCIDENTE))
+
+#table(accid$CARRETERA)
+```
+
+Interesante!!!
+
+```{r}
+
+t <- table(as.character(accid$CARRETERA))
+head(t)
+tt <- sort(t, decreasing = T)
+head(tt)
+head(tt, n = 100)
+barplot(head(tt, n = 100))
+barplot(head(tt, n = 50))
+barplot(head(tt, n = 10))
+tt <- sort(t[!is.na(t)], decreasing = T)
+head(tt)
+tt[1]
+tt <- sort(t, decreasing = T)
+barplot(tt[2:50])
+barplot(tt[2:20])
+barplot(tt[2:10])
+
+```
+
+
+La verdad es que con esta información se pueden hacer virguerías, pero a mi lo que me interesa es lo relacionado con los vehículos, con lo que podemos empezar ya a mezclar las fuentes de datos.
+
+```{r}
+
+datos <- merge(accid, turismos,
+               by.x = "ID_ACCIDENTE",
+               by.y = "ID_ACCIDENTE",
+               all.x = F,
+               all.y = T)
+
+dim(datos)
+
+summary(datos)
+```
+
+Veamos si con un simple mosaicplot podemos sacar algo:
+
+```{r}
+
+library(vcd)
+
+mosaic(~ MUERTOS +
+         COMUNIDAD_AUTONOMA +
+         gredad,
+       data = datos,
+       shade = T)
+
+```
+
+
+Ojo!!! La gran mayoría de accidentes, ¡¡¡afortunadamente!!! tienen 0 muertos. Por lo tanto lo que tendremos que hacer es filtrar los accidentes con >0 víctimas mortales.
+
+Ojo ojo ojo que nuestra variable total muertos ¡tiene decimales! Claramente tenemos que agruparla
+
+
+
+```{r}
+
+datos$grmuertos <- cut(datos$MUERTOS, 
+                       breaks = c(0, 1, 2, max(datos$MUERTOS)))
+
+table(datos$grmuertos)
+```
+
+Veamos accidentes con solo 1 muerto, que son una gran mayoría. (Ya veremos cuando tengamos códigos los tipos de accidente por si eso arroja alguna luz)
+
+```{r}
+
+mosaic(~ gredad +
+         COMUNIDAD_AUTONOMA 
+         ,
+       data = datos[datos$grmuertos == "(0,1]", ],
+       shade = T)
+
+```
+
+¡¡No sé si creerme estos códigos de comunidad autónoma!! Cataluña (9) tiene un número de accidentes enormemente menor que Madrid (13), que es la CA que concentra una cantidad enorme de accidentes con al menos 1 muerto.
+
+Por cierto códigos de CA aquí
+http://www.ine.es/daco/daco42/codmun/cod_ccaa.htm
+
+
+```{r}
+
+mosaic(~ gredad +
+         grmuertos 
+         ,
+       data = datos,
+       shade = T)
+
+```
+
+
+Esto requiere algún tipo de balloonplot con mapa.
+
+Veamos quizás algo más sobre número de vehículos implicados. Hay que cortar niveles.
+
+```{r}
+
+
+datos$grvehic <- cut(as.numeric(as.character(datos$ID_VEHICULO)), 
+                       breaks = c(1, 2, 3, 45))
+
+table(datos$grvehic)
+
+
+```
+
+
+```{r}
+
+mosaic(~ gredad +
+         grmuertos +
+         grvehic
+         ,
+       data = datos,
+       shade = T)
+
+```
+
+Problemas hasta ahora:
+
+- que cuadren esos datos con los publicados por dgt
+
+http://www.dgt.es/Galerias/seguridad-vial/estadisticas-e-indicadores/publicaciones/anuario-estadistico-de-accidentes/anuario-accidentes-2013.pdf
+
+
+Veamos la tabla de personas
+
+```{r}
+
+pers <- read.table(csvfiles[2],
+                    header = T,
+                    sep = ";")
+
+dim(pers)
+
+head(pers)
+
+summary(pers)
+```
+
+Vamos a intentar corroborar la tabla 4.5 del informe de línea directa
+
+```{r}
+
+table(datos$gredad,
+      datos$MUERTOS)
+
+kk <- datos[datos$MUERTOS > 0, ]
+
+table(kk$gredad,
+      kk$ID_VEHICULO,
+      kk$MUERTOS)
+
+
+```
+
+Me salen 566 muertos en vehículos anteriores a 2003
+
+¡¡¡Pero es que me salen 577 en el resto de vehículos!!!
+
+
+Y de lo que se trata es de ver "proporción de fallecidos sobre accidentes con víctimas"
+
+
+
