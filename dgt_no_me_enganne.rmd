@@ -9,6 +9,12 @@ Estudio 'provocado' por la carta de la DGT con la famosa afirmación "los conduc
 
 Preguntamos por datos accidentalidad en España y DGT fue muy amable por twitter señalar la siguiente [dirección web para microdatos](https://sedeapl.dgt.gob.es/WEB_IEST_CONSULTA/subcategoria.faces), aunque ¡ojo! en el último momento en que he consultado esta web sólo dispone de datos hasta 2013. Es interesante señalar que disponemos también de [informes predefinidos](https://sedeapl.dgt.gob.es/WEB_IEST_CONSULTA/buscadorInformePredefinido.faces), básicamente tablas que cruzan variables importantes de clasificación. (Y después de contestar a un captcha...)
 
+ENLACE IMPRESCINDIBLE!! El "diseño de registro"
+
+https://sedeapl.dgt.gob.es/IEST_INTER/pdfs/disenoRegistro/accidentes/Diseno_Registro_desde_2011.zip
+
+Ojo por si alguien quiere hacer serie histórica de accidentes que a fecha de escribir esto (31-03-2016, los datos de 2008 y 2010 **no** estaban disponibles en la página DGT)
+
 ```{r}
 setwd("C:/Users/pedroc/Desktop/dgt")
 
@@ -23,7 +29,7 @@ Leamos la de vehículos que es en principio la que nos interesa
 
 ```{r}
 
-vehic <- read.table(csvfiles[3],
+vehic <- read.table(csvfiles[4],
                     header = T,
                     sep =",")
 
@@ -147,7 +153,7 @@ Leamos la tabla de accidentes
 
 ```{r}
 
-accid <- read.table(csvfiles[1],
+accid <- read.table(csvfiles[2],
                     header = T,
                     sep = ";")
 
@@ -187,12 +193,18 @@ tt <- sort(t[!is.na(t)], decreasing = T)
 head(tt)
 tt[1]
 tt <- sort(t, decreasing = T)
-barplot(tt[2:50])
+
 barplot(tt[2:20])
-barplot(tt[2:10])
+#barplot(tt[2:10])
 
 ```
 
+
+```{r}
+
+barplot(tt[2:50], las = 3)
+
+```
 
 La verdad es que con esta información se pueden hacer virguerías, pero a mi lo que me interesa es lo relacionado con los vehículos, con lo que podemos empezar ya a mezclar las fuentes de datos.
 
@@ -223,6 +235,40 @@ mosaic(~ MUERTOS +
 
 ```
 
+Pero este gráfico es engañoso debido a los NA's
+
+```{r}
+
+mosaic(~ MUERTOS +
+         COMUNIDAD_AUTONOMA ,
+       data = datos[datos$MUERTOS > 0,],
+       shade = T)
+
+
+```
+
+
+Ojo! todo tipo de accidentes, incluidos los sin víctimas
+
+```{r}
+
+mosaic(~ gredad +
+         COMUNIDAD_AUTONOMA ,
+       data = datos,
+       shade = T)
+
+```
+
+Ojo! accidentes con MUERTOS pero ¡CUIDADO CON LOS NA'S!
+
+```{r}
+
+mosaic(~ gredad +
+         COMUNIDAD_AUTONOMA ,
+       data = datos[datos$MUERTOS > 0,],
+       shade = T)
+
+```
 
 Ojo!!! La gran mayoría de accidentes, ¡¡¡afortunadamente!!! tienen 0 muertos. Por lo tanto lo que tendremos que hacer es filtrar los accidentes con >0 víctimas mortales.
 
@@ -237,6 +283,18 @@ datos$grmuertos <- cut(datos$MUERTOS,
 
 table(datos$grmuertos)
 ```
+
+```{r}
+
+mosaic(~ gredad +
+         COMUNIDAD_AUTONOMA +
+         grmuertos,
+       data = datos[datos$MUERTOS > 0,],
+       shade = T)
+
+```
+
+
 
 Veamos accidentes con solo 1 muerto, que son una gran mayoría. (Ya veremos cuando tengamos códigos los tipos de accidente por si eso arroja alguna luz)
 
@@ -323,14 +381,56 @@ Vamos a intentar corroborar la tabla 4.5 del informe de línea directa
 table(datos$gredad,
       datos$MUERTOS)
 
-kk <- datos[datos$MUERTOS > 0, ]
+kk <- datos[datos$MUERTOS > 0 & datos$COMUNIDAD_AUTONOMA != 9, ]
 
-table(kk$gredad,
-      kk$ID_VEHICULO,
-      kk$MUERTOS)
-
+mosaic(~ gredad +
+         COMUNIDAD_AUTONOMA,
+       data = kk,
+       shade = T)
 
 ```
+
+ENORME PROBLEMA DE ANTIGUEDAD FALTANTE SOBRE TODO EN CATALUÑA 
+
+```{r}
+table(datos$gredad, datos$COMUNIDAD_AUTONOMA, exclude = NULL)
+
+23878 / (23878+243+510+435+255)
+```
+
+95% de los accidentes en Cataluña carecen de datos de edad del vehículo.
+
+Veamos si eso también sucede en accidentes con víctimas mortales
+
+```{r}
+
+datos_muerte <- datos[datos$MUERTOS > 0, ]
+
+table(datos_muerte$gredad, datos_muerte$COMUNIDAD_AUTONOMA, exclude = NULL)
+
+29 / (29+27+76+48+33)
+```
+
+Bueno en caso de accidentes con víctimas mortales perdemos sólo el 15%. Aun así lo pondremos como categoría específica
+
+```{r}
+
+datos_muerte$gredad <- as.character(datos_muerte$gredad)
+datos_muerte$gredad[is.na(datos_muerte$gredad)] <- "NO_hay"
+
+table(datos_muerte$gredad, datos_muerte$COMUNIDAD_AUTONOMA, exclude = NULL)
+
+```
+
+```{r}
+
+mosaic(~ gredad +
+         COMUNIDAD_AUTONOMA,
+       data = datos_muerte,
+       shade = T)
+
+```
+
 
 Me salen 566 muertos en vehículos anteriores a 2003
 
@@ -340,4 +440,186 @@ Me salen 566 muertos en vehículos anteriores a 2003
 Y de lo que se trata es de ver "proporción de fallecidos sobre accidentes con víctimas"
 
 
+
+HAY QUE USAR LA PROVINCIA QUE SÍ PARECE SIMILAR A LO QUE INFORMAN RESULTADOS DGT
+
+```{r}
+
+table(accid$COD_PROVINCIA)
+barplot(table(accid$COD_PROVINCIA))
+
+
+```
+
+```{r}
+
+table(datos$COD_PROVINCIA)
+barplot(table(datos$COD_PROVINCIA))
+
+length(is.na(datos$COD_PROVINCIA))
+
+```
+
+
+
+INTENTAMOS DIBUJAR UN MAPA
+
+```{r}
+
+library(ggmap)
+
+# obtengo un mapa
+pen.iber <- get_map( location = c(-9.5, 36, 3.5, 44),
+                     color = "color",
+                     maptype = "roadmap")
+
+class(pen.iber)
+str(pen.iber)
+
+ggmap(pen.iber)
+
+
+```
+
+
+```{r}
+
+# Cambiamos opciones (tipo de mapa)
+pen.iber <- get_map( location = c(-9.5, 36, 3.5, 44),
+                     color = "color",
+                     maptype = "watercolor")
+
+class(pen.iber)
+str(pen.iber)
+
+ggmap(pen.iber)
+
+
+```
+
+
+Intentemos lo que recomiendan los expertos de verdad [Oscar Perpiñán](https://procomun.wordpress.com/2012/02/18/maps_with_r_1/)
+
+```{r}
+
+library(maps)
+library(maptools)
+## EDITED: if you have rgeos installed you won't need
+## gpclibPermit() below.
+library(sp)
+library(lattice)
+library(latticeExtra)
+library(colorspace)
+```
+
+The Spanish administrative boundaries are available as shapefiles at the [INE webpage (~70Mb)](ftp://www.ine.es/pcaxis/mapas_completo_municipal.rar)
+
+check nasty problem with unionSpatialPolygons [error Error: isTRUE(gpclibPermitStatus()) is not TRUE](http://stackoverflow.com/questions/30790036/error-istruegpclibpermitstatus-is-not-true)
+
+```{r}
+
+espMap <- readShapePoly(fn="mapas_completo_municipal/esp_muni_0109")
+Encoding(levels(espMap$NOMBRE)) <- "latin1"
+ 
+##There are some repeated polygons which can be dissolved with
+## unionSpatialPolygons.
+## EDITED: gpclibPermit() is needed for unionSpatialPolygons to work
+## but can be ommited if you have rgeos installed
+## (recommended, see comment of Roger Bivand below).
+
+library(rgeos)
+espPols <- unionSpatialPolygons(espMap, espMap$PROVMUN)
+
+```
+
+los datos de municipio los tenemos aquí
+
+```{r}
+
+table(accid$MUNICIPIO)
+table(espMap$PROVMUN)
+table(espMap$NOMBRE)
+
+
+```
+
+
+
+```{r}
+
+canarias <-  sapply(espPols@polygons, function(x)substr(x@ID, 1, 2) %in% c("35",  "38"))
+peninsulaPols <- espPols[!canarias]
+islandPols <- espPols[canarias]
+```
+
+Then we shift the coordinates of the islands:
+
+```{r}
+	
+dy <- bbox(peninsulaPols)[2,1] - bbox(islandPols)[2,1]
+dx <- bbox(peninsulaPols)[1,2] - bbox(islandPols)[1,2]
+ 
+islandPols2 <- elide(islandPols, shift=c(dx, dy))
+bbIslands <- bbox(islandPols2)
+```
+
+and finally construct a new object binding the shifted islands with the peninsula:
+
+```{r}
+
+espPols <- rbind(peninsulaPols, islandPols2)
+
+```
+
+
+```{r}
+
+# Extraigamos tabla de accidentes mortales por municipio
+
+accid$MUNICIPIO[accid$MUNICIPIO == 0] <- NA
+
+t <- table(accid$MUNICIPIO, exclude = NULL)
+t <- sort(t, decreasing = T)
+head(t, n = 20)
+
+tt <- as.data.frame(t)
+head(tt)
+
+votos2011 <- tt
+
+votos2011$PROVMUN <- rownames(tt)
+
+head(votos2011)
+
+votos2011 <- merge(votos2011,
+                   espMap)
+
+table(espMap$PROVMUN)
+table(espMap$NOMBRE)
+
+IDs <- sapply(espPols@polygons, function(x)x@ID)
+idx <- match(IDs, votos2011$PROVMUN)
+ 
+##Places without information
+idxNA <- which(is.na(idx))
+ 
+##Information to be added to the SpatialPolygons object
+dat2add <- data.frame(prov = votos2011$PROV,
+poblacion = votos2011$Nombre.de.Municipio,
+Max = Max,  pcMax = pcMax,  who = whichMax)[idx, ]
+ 
+row.names(dat2add) <- IDs
+espMapVotes <- SpatialPolygonsDataFrame(espPols, dat2add)
+ 
+## Drop those places without information
+espMapVotes <- espMapVotes[-idxNA, ]
+
+```
+
+
+
+ENLACES IMPORTANTES
+
+- DGT
+- LISTA DE PROVINCIAS http://alarcos.esi.uclm.es/per/fruiz/pobesp/tem_list.htm#aut
 
