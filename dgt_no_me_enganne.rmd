@@ -9,6 +9,11 @@ Estudio 'provocado' por la carta de la DGT con la famosa afirmación "los conduc
 
 Preguntamos por datos accidentalidad en España y DGT fue muy amable por twitter señalar la siguiente [dirección web para microdatos](https://sedeapl.dgt.gob.es/WEB_IEST_CONSULTA/subcategoria.faces), aunque ¡ojo! en el último momento en que he consultado esta web sólo dispone de datos hasta 2013. Es interesante señalar que disponemos también de [informes predefinidos](https://sedeapl.dgt.gob.es/WEB_IEST_CONSULTA/buscadorInformePredefinido.faces), básicamente tablas que cruzan variables importantes de clasificación. (Y después de contestar a un captcha...)
 
+NOTICIA A BOMBO Y PLATILLO PERO ¿SE HAN CUMPLIDO LOS OBJETIVOS?
+
+http://www.dgt.es/es/prensa/notas-de-prensa/2015/20150722-ya-esta-disponible-el-portal-estadistico-de-la-dgt.shtml
+
+
 ENLACE IMPRESCINDIBLE!! El "diseño de registro"
 
 https://sedeapl.dgt.gob.es/IEST_INTER/pdfs/disenoRegistro/accidentes/Diseno_Registro_desde_2011.zip
@@ -155,7 +160,13 @@ Leamos la tabla de accidentes
 
 accid <- read.table(csvfiles[2],
                     header = T,
-                    sep = ";")
+                    sep = ";",
+                    colClasses = c(rep("character", 3),
+                                   rep("factor", 3),
+                                   rep("character", 3),
+                                   rep("numeric", 9),
+                                   rep("factor", 18))
+                    )
 
 dim(accid)
 
@@ -166,7 +177,47 @@ summary(accid)
 
 Da varios warnings, y veo que el número de líneas leídas es inferior al número de líneas en fichero. Entro en fichero datos y observo que hay varias " ' ", que hay que quitar.
 
-Información riquísima sobre accidentes
+Información riquísima sobre accidentes. Nos interesará sobre todo el municipio para luego dibujar un mapa. Pero hay cómo no NA's y ... 00000 (!)
+
+```{r}
+
+t <- table(accid$MUNICIPIO, exclude = NULL)
+
+t <- sort(t, decreasing = T)
+
+head(t, n = 10)
+
+```
+
+Busquemos, 28079 ... ¡NO EXISTE! El código postal más cercano es 28071 que es ... ORGANISMOS OFICIALES, y 28070 CÓDIGOS POSTALES. 
+
+http://www.codigospostales.com/nestcp.cgi?28
+
+Ponemos 00000 a NA y qué remedio 28079 a 28001 (ojo que hay muchísimos más problemas con todos los > 28055, y ay qué miedo las otras provincias)
+
+```{r}
+
+accid$MUNICIPIO[accid$MUNICIPIO == "00000"] <- NA
+accid$MUNICIPIO[accid$MUNICIPIO == ""] <- NA
+
+accid$MUNICIPIO[accid$MUNICIPIO == "28079"] <- "28001"
+
+```
+
+Veamos códs postales de accidentes con víctimas mortales
+
+```{r}
+
+t <- table(accid$MUNICIPIO[accid$MUERTOS > 0], 
+           exclude = NULL)
+
+t <- sort(t, decreasing = T)
+
+head(t, n = 10)
+
+
+```
+
 
 ```{r}
 
