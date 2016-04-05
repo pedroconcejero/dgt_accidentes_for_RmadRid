@@ -34,7 +34,7 @@ Leamos la de vehículos que es en principio la que nos interesa
 
 ```{r}
 
-vehic <- read.table(csvfiles[4],
+vehic <- read.table("TABLA_VEHIC_2013.csv",
                     header = T,
                     sep =",")
 
@@ -154,16 +154,19 @@ barplot(table(turismos$gredad))
 ¡Pero esto son datos absolutos! Esto es, aunque en las tres barras desde 1998 contienen el mismo número de años, hay que ver qué proporción de vehículos están implicados en accidente en proporción al número de vehículos de su edad en circulación. ¿Tenemos datos de parque de vehículos en año 2013? Solo los necesitaré para turismos y también quizás solo la antiguedad del vehículo.
 
 
+
 Leamos la tabla de accidentes
 
 ```{r}
 
-accid <- read.table(csvfiles[2],
+accid <- read.table("TABLA_ACCVICT_2013.csv",
                     header = T,
                     sep = ";",
-                    colClasses = c(rep("character", 3),
-                                   rep("factor", 3),
-                                   rep("character", 3),
+                    colClasses = c(rep("character", 2),
+                                   "integer",
+                                   "factor",
+                                   rep("integer", 4),
+                                   "character",         # para tener los cod postales con 0 
                                    rep("numeric", 9),
                                    rep("factor", 18))
                     )
@@ -189,26 +192,70 @@ head(t, n = 10)
 
 ```
 
-Busquemos, 28079 ... ¡NO EXISTE! El código postal más cercano es 28071 que es ... ORGANISMOS OFICIALES, y 28070 CÓDIGOS POSTALES. 
+ojo ojo ojo COD MUNICIPIO NO ES CODIGO POSTAL
 
-http://www.codigospostales.com/nestcp.cgi?28
+00000	Municipio menos de 5000 habitantes
+aaaaa	Si el municipio tiene 5000 habitantes o más: código de municipio normalizado por el INE (5 dígitos alfanuméricos, 2 para provincia+3 para municipio). 
+	Lista de municipios aprobada por el INE disponible en su página Web (Métodos y estándares)
 
-Ponemos 00000 a NA y qué remedio 28079 a 28001 (ojo que hay muchísimos más problemas con todos los > 28055, y ay qué miedo las otras provincias)
+La Excel se puede encontrar aquí:
+http://www.ine.es/daco/daco42/codmun/codmunmapa.htm
 
 ```{r}
 
-accid$MUNICIPIO[accid$MUNICIPIO == "00000"] <- NA
-accid$MUNICIPIO[accid$MUNICIPIO == ""] <- NA
+url_municip_ine <- "http://www.ine.es/daco/daco42/codmun/codmun16/16codmun.xlsx"
 
-accid$MUNICIPIO[accid$MUNICIPIO == "28079"] <- "28001"
+download.file(url_municip_ine,
+              "16codmun.xlsx")
+
+# http://www.thertrader.com/2014/02/11/a-million-ways-to-connect-r-and-excel/
+
+municipios <- read.table("16codmun2.txt",
+                         sep = "\t",
+                         header = T,
+                         colClasses = c(rep("character", 4)),
+                         quote = ""
+                         )
+
+municipios$MUNICIPIO <- paste0(municipios$CPRO, 
+                               municipios$CMUN)
+
+
+head(municipios)
+
+municipios[800:900,]
 
 ```
 
-Veamos códs postales de accidentes con víctimas mortales
+
 
 ```{r}
 
-t <- table(accid$MUNICIPIO[accid$MUERTOS > 0], 
+accid$MUNICIPIO[accid$MUNICIPIO == "00000"] <- "<5K habit"
+accid$MUNICIPIO[accid$MUNICIPIO == ""] <- NA
+
+```
+
+Mezclamos ahora sí con tabla de municipios
+
+```{r}
+
+accid2 <- merge(accid,
+                municipios,
+                by.x = "MUNICIPIO",
+                by.y = "MUNICIPIO",
+                all.x = T,
+                all.y = F)
+
+summary(accid2)
+
+```
+
+Veamos MUNICIPIOS de accidentes INDEP DE tipo de víctimas
+
+```{r}
+
+t <- table(accid2$NOMBRE, 
            exclude = NULL)
 
 t <- sort(t, decreasing = T)
@@ -218,21 +265,73 @@ head(t, n = 10)
 
 ```
 
+REFLEJA PERFECTAMENTE VOLUMEN DE POBLACIÓN EN ESPAÑA
+
+Veamos MUNICIPIOS de accidentes con víctimas mortales
 
 ```{r}
 
-barplot(table(accid$COD_DIASEMANA))
+t <- table(accid2$NOMBRE[accid$MUERTOS > 0], 
+           exclude = NULL)
 
-barplot(table(accid$COD_TIPOACCIDENTE))
+t <- sort(t, decreasing = T)
+
+head(t, n = 10)
+
+
+```
+
+Accidentes por dia semana y tipo de accidente
+```{r}
+
+barplot(table(accid2$COD_DIASEMANA))
+
+barplot(table(accid2$COD_TIPOACCIDENTE))
 
 #table(accid$CARRETERA)
 ```
 
-Interesante!!!
+Y mortales
 
 ```{r}
 
-t <- table(as.character(accid$CARRETERA))
+barplot(table(accid2$COD_DIASEMANA[accid2$MUERTOS > 0]))
+
+
+```
+
+
+
+IMPORTANTE!! AÑADIR ETIQUETAS DE TIPO ACCIDENTE Y EN GENERAL DE LAS PESTAÑAS EXCEL CON DESCRIPCIÓN DE CÓDIGOS!!!
+
+Interesante!!! Número de accidentes por carretera
+
+```{r}
+
+t <- table(as.character(accid2$CARRETERA))
+head(t)
+tt <- sort(t, decreasing = T)
+head(tt)
+head(tt, n = 100)
+barplot(head(tt, n = 100))
+barplot(head(tt, n = 50))
+barplot(head(tt, n = 10))
+tt <- sort(t[!is.na(t)], decreasing = T)
+head(tt)
+tt[1]
+tt <- sort(t, decreasing = T)
+
+barplot(tt[2:20])
+#barplot(tt[2:10])
+
+```
+
+
+Lo mismo pero para accidentes mortales
+
+```{r}
+
+t <- table(as.character(accid2$CARRETERA[accid2$MUERTOS > 0]))
 head(t)
 tt <- sort(t, decreasing = T)
 head(tt)
@@ -259,9 +358,12 @@ barplot(tt[2:50], las = 3)
 
 La verdad es que con esta información se pueden hacer virguerías, pero a mi lo que me interesa es lo relacionado con los vehículos, con lo que podemos empezar ya a mezclar las fuentes de datos.
 
+IDEAS:
+- Ver Pareto con accientes: si 20% de carreteras acumulan 80% accidentes (para luego poder dibujar bien, porque si no no dibujas tantas categorías). O también poner autom. "otras" en aquellas que en acumulado > 80%
+
 ```{r}
 
-datos <- merge(accid, turismos,
+datos <- merge(accid2, turismos,
                by.x = "ID_ACCIDENTE",
                by.y = "ID_ACCIDENTE",
                all.x = F,
@@ -298,6 +400,24 @@ mosaic(~ MUERTOS +
 
 ```
 
+```{r}
+
+mosaic(~ MES +
+         COD_DIASEMANA ,
+       data = datos[datos$MUERTOS > 0,],
+       shade = T)
+
+
+```
+
+```{r}
+
+mosaic(~ COD_DIASEMANA + HORA_ACCIDENTE,
+       data = datos[datos$MUERTOS > 0,],
+       shade = T)
+
+
+```
 
 Ojo! todo tipo de accidentes, incluidos los sin víctimas
 
@@ -414,7 +534,7 @@ Veamos la tabla de personas
 
 ```{r}
 
-pers <- read.table(csvfiles[2],
+pers <- read.table("TABLA_PERS_2013.csv",
                     header = T,
                     sep = ";")
 
@@ -587,7 +707,8 @@ los datos de municipio los tenemos aquí
 
 ```{r}
 
-table(accid$MUNICIPIO)
+table(datos$MUNICIPIO)
+table(datos$NOMBRE)
 table(espMap$PROVMUN)
 table(espMap$NOMBRE)
 
@@ -625,11 +746,22 @@ espPols <- rbind(peninsulaPols, islandPols2)
 
 ```{r}
 
+provinces <- readShapePoly(fn="mapas_completo_municipal/spain_provinces_ag_2")
+ 
+canarias <- provinces$PROV %in% c(35, 38)
+peninsulaLines <- provinces[!canarias,]
+
+
+
+```
+
+
+
+```{r}
+
 # Extraigamos tabla de accidentes mortales por municipio
 
-accid$MUNICIPIO[accid$MUNICIPIO == 0] <- NA
-
-t <- table(accid$MUNICIPIO, exclude = NULL)
+t <- table(accid2$MUNICIPIO[accid2$MUERTOS > 0], exclude = NULL)
 t <- sort(t, decreasing = T)
 head(t, n = 20)
 
@@ -642,11 +774,23 @@ votos2011$PROVMUN <- rownames(tt)
 
 head(votos2011)
 
-votos2011 <- merge(votos2011,
-                   espMap)
+votos2011 <- votos2011[!is.na(votos2011$PROVMUN),]
 
-table(espMap$PROVMUN)
-table(espMap$NOMBRE)
+head(votos2011)
+
+votos2011 <- votos2011[votos2011$PROVMUN != "<5K habit",]
+
+head(votos2011)
+
+votos2011 <- merge(votos2011,
+                   accid2[, c("MUNICIPIO",
+                              "NOMBRE")],
+                   by.x = "PROVMUN",
+                   by.y = "MUNICIPIO",
+                   all.x = T,
+                   all.y = F)
+
+head(votos2011)
 
 IDs <- sapply(espPols@polygons, function(x)x@ID)
 idx <- match(IDs, votos2011$PROVMUN)
@@ -655,9 +799,11 @@ idx <- match(IDs, votos2011$PROVMUN)
 idxNA <- which(is.na(idx))
  
 ##Information to be added to the SpatialPolygons object
-dat2add <- data.frame(prov = votos2011$PROV,
-poblacion = votos2011$Nombre.de.Municipio,
-Max = Max,  pcMax = pcMax,  who = whichMax)[idx, ]
+dat2add <- data.frame(prov = votos2011$PROVMUN,
+poblacion = votos2011$NOMBRE,
+#Max = Max,  pcMax = pcMax,  
+#who = whichMax
+)[idx, ]
  
 row.names(dat2add) <- IDs
 espMapVotes <- SpatialPolygonsDataFrame(espPols, dat2add)
