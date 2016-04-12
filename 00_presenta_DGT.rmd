@@ -60,7 +60,7 @@ csvfiles <- list.files(pattern = glob2rx("*.csv"))
 print(csvfiles)
 ```
 
-***
+
 ## Accidentes en España 2013
 
 ```{r}
@@ -331,6 +331,19 @@ summary(accidentes)
 
 ```
 
+# Tipos de accidente con resultado mortal
+
+```{r}
+
+t <- table(accidentes$tipoaccidente[accidentes$MUERTOS > 0])
+t <- sort(t, decreasing = T)
+barplot(head(t, n = 10),
+        las = 1,
+        horiz = T)
+
+```
+
+
 # Factores de riesgo en TODOS los accidentes
 
 ## Un árbol de decisión
@@ -401,6 +414,8 @@ round(table(vehic$ANIO_MATRICULA_VEHICULO, exclude = NULL)/nrow(vehic)*100, digi
 
 ***
 
+# Filtramos los turismos
+
 código 22 son turismos, representan el 65.5% de los datos. Los filtramos porque son el tipo de vehículos en los que nos vamos a concentrar
 
 ```{r, echo = FALSE}
@@ -412,6 +427,8 @@ barplot(table(turismos$ANIO_MATRICULA_VEHICULO))
 ```
 
 ***
+
+# 4 grupos## Factores de riesgo (I)
 
 Hacemos grupos de 5 en 5 años hasta 20 y más de 20
 ```{r, echo = FALSE}
@@ -427,7 +444,7 @@ barplot(table(turismos$gredad))
 
 
 
-***
+# Mezclamos ambas fuentes de información
 
 Mezclamos la información de accidentes con la de vehículos. Tenemos ID_ACCIDENTE e ID_VEHICULO que debemos cruzar con misma ID de accidente pero "VEHICULOSIMPLICADOS" en tabla accidentes...
 
@@ -438,7 +455,7 @@ datos <- merge(accidentes,
                by.y = c("ID_ACCIDENTE", "ID_VEHICULO"),
                all.x = F,
                all.y = T)
-dim(accid); dim(vehic); dim(datos)
+dim(accid); dim(turismos); dim(datos)
 ```
 
 (Hay 240 accidentes sin vehículo que no se mezclan porque generan todo NA's)
@@ -449,20 +466,46 @@ summary(datos)
 
 ```
 
+# Problemas con los datos
 
-***
+Hay nada menos que 45701 turismos en la tabla que *no figuran* en la tabla de accidentes.
 
-Intentamos corrobar hipótesis del "doble riesgo de fallecer"
+Y nos falta la edad, el año de matrícula, de 30104 vehículos.
+
+12880 de ellos de la comunidad autónoma "Cataluña"
+
+```{r}
+table(datos$COMUNIDAD_AUTONOMA, datos$gredad, exclude = NULL)
+```
+
+## ¿Nos afecta esta falta de datos?
+
+```{r}
+
+t <- table(datos$COMUNIDAD_AUTONOMA[datos$MUERTOS > 0], exclude = NULL)
+t <- table(datos$COMUNIDAD_AUTONOMA[datos$MUERTOS > 0]); sum(t)
+
+sum(t)/sum(table(accid$MUERTOS[accid$MUERTOS > 0]))
+```
+
+Los accidentes con víctimas mortales parece que sí disponen de la información de comunidad autónoma.
+
+Según estos datos, turismos están involucrados en un 55% de accidentes con víctimas mortales
+
+# Intentamos corrobar hipótesis del "doble riesgo de fallecer"
 
 Datos de frecuencias
 
 ```{r}
 table(datos$gredad, datos$MUERTOS)
+table(datos$gredad[datos$MUERTOS > 0])
+sum(table(datos$gredad[datos$MUERTOS > 0]))
+
 ```
 
-***
+Nos falta dato de antiguedad de 50 vehículos en accidentes mortales
 
-En proporciones por número de accidentes 
+# En proporciones por número de accidentes 
 
 ```{r}
 round(table(datos$gredad, datos$MUERTOS) / length(unique(datos$ID_ACCIDENTE)), digits = 4) * 10000
@@ -472,14 +515,13 @@ round(table(datos$gredad, datos$MUERTOS) / length(unique(datos$ID_ACCIDENTE)), d
 Técnicamente, hay posibilidades de 14 entre 10000 de resultar muerto en accidente en coche de menos 5 años, versus 30 5 a 10 años, 26 de 10 a 15 y 18 para los de más de 15 años.
 
 
-***
+# ¿Validamos o falseamos?
+
 ¡¡YO NO OBSERVO ESA DIFERENCIA QUE MENCIONA FUNDACIÓN LÍNEA DIRECTA!!
 
 ¡¡SÍ observo esa relación 2 a 1 en los vehículos de entre 5 y 10 años y 10 y 15 años!!
 
-¿QUÉ PUEDE ESTAR PASANDO?
-
-***
+# ¿QUÉ PUEDE ESTAR PASANDO?
 
 Simplificamos datos de muertos en accidente (con o sin muertos)
 ```{r}
@@ -509,6 +551,16 @@ mosaic(~ gredad +
 ```
 
 **DEBEMOS SABER QUE FALTAN CASI TODOS LOS DE CATALUÑA (8), SON NA's**
+
+```{r, echo=FALSE}
+mosaic(~ gredad +
+         COMUNIDAD_AUTONOMA +
+         MUERTOS,
+       data = datos[datos$MUERTOS > 0,],
+       shade = T)
+
+```
+
 
 ***
 
