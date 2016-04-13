@@ -70,8 +70,8 @@ accid <- read.table("TABLA_ACCVICT_2013.csv",
                     sep = ";",
                     colClasses = c(rep("character", 2),
                                    "integer",
-                                   "factor",
-                                   rep("integer", 4),
+                                   "character",
+                                   rep("character", 4),
                                    "character", # para tener los cod "0xxxx"
                                    rep("numeric", 9),
                                    rep("factor", 18)),
@@ -331,7 +331,7 @@ summary(accidentes)
 
 ```
 
-# Tipos de accidente con resultado mortal
+# Tipos de accidente con resultado mortal (MEJORAR)
 
 ```{r}
 
@@ -340,6 +340,36 @@ t <- sort(t, decreasing = T)
 barplot(head(t, n = 10),
         las = 1,
         horiz = T)
+
+```
+
+# Mapa accidentes mortales 2013
+
+código en script aparte
+
+***
+
+![](mapa_muertes_trafico.jpg)
+
+
+# Generamos una tabla de accidentes mortales por provincias para mapa
+
+Ojo todos los tipos accidentes, todos los vehículos (luego nos centramos solo en turismos)
+
+```{r}
+
+# Necesitamos código provincia como factor desde "01" hasta "52" (respetando los 0 iniciales)
+
+accidentes$codeprov <- substr(accidentes$MUNICIPIO, 1, 2)
+accidentes$codeprov[accidentes$codeprov == ""] <- NA
+accidentes$codeprov[accidentes$codeprov == "00"] <- NA
+accidentes$codeprov <- droplevels(as.factor(accidentes$codeprov))
+
+t <- table(accidentes$codeprov[accidentes$MUERTOS > 0])
+
+tabla <- as.data.frame(t)
+
+save(tabla, file = "tabla_accid_mortales_por_prov.rda")
 
 ```
 
@@ -605,32 +635,7 @@ library(party)
 
 accid$target <- as.numeric(accid$MUERTOS > 0)
 
-
-tree.1 <- ctree(target ~ MES + COD_DIASEMANA +
-                #         COD_PROVINCIA + 
-                #         COD_ZONA + 
-                         ZONA_AGRUPADA + 
-                #         CARRETERA + 
-                #         COD_RED + 
-                         COD_CALZADA +
-                         TRAZADO_NO_INTERSEC + COD_TIPOINTERSECCION + 
-                         ACOND_CALZADA + 
-                #         COD_PRIORIDAD +
-                         COD_SUPERFICIECALZADA + COD_LUMINOSIDAD + 
-                         COD_FACTORESATMOSFERICOS +
-                         VISIBILIDAD_RESTRINGIDA + 
-                #         OTRA_CIRCUNSTANCIA + 
-                #         COD_TIPOACCIDENTE + 
-                          DENSIDAD_CIRCULACION
-                , 
-                  data = accid, 
-                  controls = ctree_control(maxdepth = 4)
-  )
-  
-  print(tree.1)  
-  
-  plot(tree.1, type = "simple")
-
+accid$target <- as.factor(accid$target)
 
 ```
 
@@ -646,10 +651,7 @@ Asimismo en curvas, situaciones de baja visibilidad como son el terreno o los de
 
 ```{r}
 
-tree.2 <- ctree(target ~ MES + COD_DIASEMANA +
-                #         COD_PROVINCIA + 
-                #         COD_ZONA + 
-                         ZONA_AGRUPADA + 
+tree.2 <- ctree(target ~ ZONA_AGRUPADA + 
                 #         CARRETERA + 
                 #         COD_RED + 
                 #         COD_CALZADA +
@@ -714,3 +716,16 @@ plot(tree.3, type = "simple")
 dev.off()
 
 ```
+
+# Calendarplot de la librería openair
+
+Precioso gráfico de esta librería, pensada para representar cantidades de contaminantes pero igualmente aplicable para accidentes.
+
+Debemos comenzar con transformaciones de fechas
+
+## Transformaciones de fechas
+
+```{r}
+
+```
+
